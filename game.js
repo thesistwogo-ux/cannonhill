@@ -219,7 +219,7 @@ function makeTank(i, isHuman) {
     color: TANK_COLORS[i],
     x: 100, y: 100, hp: MAX_HP,
     angle: i < 2 ? 60 : 120,      // degrees, 0=right .. 180=left, measured up
-    power: 25, charging: false, charge: 0, shotActive: false,
+    power: 25, charging: false, charge: 0, shotActive: false, noAmmo: 0,
     weapon: W_STONE,
     ammo: {}, money: 0, roundsWon: 0,
     shield: 0, magnet: 0,
@@ -718,6 +718,15 @@ function drawTank(t) {
 }
 
 function drawCharge(t) {
+  if (t.noAmmo > 0) {
+    const by = t.y - 26;
+    ctx.font = 'bold 8px -apple-system, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText('✕ NO AMMO', t.x + 1, by + 1);
+    ctx.fillStyle = '#ff5252'; ctx.fillText('✕ NO AMMO', t.x, by);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    return;
+  }
   if (!t.charging) return;
   const tip = cannonTip(t);
   const w = 22, h = 4, bx = t.x - w/2, by = t.y - 26;
@@ -810,6 +819,7 @@ function simStep() {
     if (input.left) t.angle = clamp(t.angle + 1.6, 5, 175);
     if (input.right) t.angle = clamp(t.angle - 1.6, 5, 175);
     if (t.charging) t.charge = Math.min(MAX_POWER, t.charge + 1);
+    if (t.noAmmo > 0) t.noAmmo--;
     if (t.shield > 0) t.shield--;
     if (t.magnet > 0) t.magnet--;
   }
@@ -865,7 +875,7 @@ function setupControls() {
   bindButton(document.getElementById('btnLeft'),  ()=>input.left=true,  ()=>input.left=false);
   bindButton(document.getElementById('btnRight'), ()=>input.right=true, ()=>input.right=false);
   bindButton(document.getElementById('btnFire'),
-    ()=>{ const t=humanTank(); if(t){ if(WEAPONS[t.weapon].support||WEAPONS[t.weapon].instant){ t.charge=MAX_POWER; fire(t);} else { t.charging=true; t.charge=Math.max(t.charge,2);} } },
+    ()=>{ const t=humanTank(); if(t){ if(t.ammo[t.weapon]===0){ t.noAmmo=45; } else if(WEAPONS[t.weapon].support||WEAPONS[t.weapon].instant){ t.charge=MAX_POWER; fire(t);} else { t.charging=true; t.charge=Math.max(t.charge,2);} } },
     ()=>{ const t=humanTank(); if(t && t.charging) fire(t); });
   document.getElementById('btnPrev').addEventListener('click', ()=>cycleWeapon(-1));
   document.getElementById('btnNext').addEventListener('click', ()=>cycleWeapon(1));
