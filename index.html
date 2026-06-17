@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cannonhill">
+<meta name="theme-color" content="#0d1b2a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-180.png">
+<title>Cannonhill</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1b2a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #eaf2ff; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #game { image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none;
+    box-shadow: 0 0 40px rgba(0,0,0,0.6); background: #2b6fd6; }
+
+  /* ---------- HUD / touch controls ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column;
+    justify-content: flex-end; padding: max(10px, env(safe-area-inset-bottom)) 14px 14px; }
+  #controls { display: flex; align-items: flex-end; justify-content: space-between; }
+  .ctlGroup { display: flex; gap: 12px; align-items: flex-end; pointer-events: auto; }
+  .btn { width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(10,20,35,0.45); color: #fff; font-size: 26px; display: flex; align-items: center;
+    justify-content: center; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    touch-action: none; }
+  .btn:active { background: rgba(80,140,220,0.7); }
+  #btnFire { width: 92px; height: 92px; font-size: 18px; font-weight: 700; letter-spacing: 1px;
+    background: rgba(200,50,50,0.55); border-color: rgba(255,180,180,0.7); }
+  #btnFire:active { background: rgba(230,60,60,0.85); }
+  .weaponBox { pointer-events: auto; display: flex; align-items: center; gap: 8px;
+    background: rgba(10,20,35,0.5); border: 1px solid rgba(255,255,255,0.3); border-radius: 14px;
+    padding: 6px 10px; margin-bottom: 10px; backdrop-filter: blur(3px); }
+  .weaponBox .nav { width: 34px; height: 34px; border-radius: 8px; border: none; color: #fff;
+    background: rgba(255,255,255,0.12); font-size: 18px; }
+  .weaponBox .info { min-width: 96px; text-align: center; line-height: 1.1; }
+  .weaponBox .info b { display: block; font-size: 13px; }
+  .weaponBox .info span { font-size: 16px; color: #ffd866; }
+  #topbar { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: flex-end;
+    padding: 8px; pointer-events: none; }
+  #btnMenu { pointer-events: auto; width: 40px; height: 40px; font-size: 18px; }
+
+  /* ---------- full-screen menus ---------- */
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center;
+    justify-content: center; padding: 24px; text-align: center; z-index: 20;
+    background: radial-gradient(circle at 50% 25%, #1c3a63, #0a1422 75%); }
+  .screen.show { display: flex; }
+  .screen h1 { font-size: clamp(22px, 6vw, 40px); margin: 0 0 6px; }
+  .logo { font-size: clamp(34px, 9vw, 64px); font-weight: 800; letter-spacing: 2px;
+    background: linear-gradient(#ffe680, #ff9d3c); -webkit-background-clip: text; background-clip: text;
+    color: transparent; text-shadow: 0 4px 18px rgba(255,140,40,0.3); margin: 0; }
+  .tag { opacity: 0.7; margin: 4px 0 28px; font-size: 14px; }
+  button.big { font-size: 20px; padding: 14px 30px; margin: 8px; border-radius: 14px; border: none;
+    color: #10243d; font-weight: 700; background: linear-gradient(#ffe27a, #ffb13c); min-width: 220px; }
+  button.ghost { background: rgba(255,255,255,0.08); color: #eaf2ff; border: 1px solid rgba(255,255,255,0.3); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    width: min(420px, 86vw); padding: 12px 16px; margin: 6px 0; background: rgba(255,255,255,0.06);
+    border-radius: 12px; font-size: 17px; }
+  .stepper { display: flex; align-items: center; gap: 14px; }
+  .stepper button { width: 40px; height: 40px; border-radius: 10px; border: none; font-size: 22px;
+    background: rgba(255,255,255,0.15); color: #fff; }
+  .stepper .val { min-width: 24px; font-size: 20px; font-weight: 700; }
+  input[type=checkbox] { width: 26px; height: 26px; }
+  .scores { border-collapse: collapse; margin: 16px auto; font-size: 16px; }
+  .scores th, .scores td { padding: 6px 18px; border-bottom: 1px solid rgba(255,255,255,0.15); }
+  .helpText { max-width: 520px; text-align: left; line-height: 1.5; font-size: 15px; opacity: 0.92; }
+  .helpText li { margin: 6px 0; }
+  #shopList { width: min(440px, 90vw); max-height: 52vh; overflow-y: auto; margin: 10px 0; }
+  .shopRow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 5px 0;
+    background: rgba(255,255,255,0.06); border-radius: 10px; }
+  .shopRow .sn { flex: 1; text-align: left; }
+  .shopRow .sp { color: #ffd866; } .shopRow .sh { opacity: 0.7; width: 38px; }
+  .shopRow button { padding: 8px 16px; border-radius: 8px; border: none; background: #ffb13c;
+    color: #10243d; font-weight: 700; }
+  .shopRow button:disabled { opacity: 0.35; }
+  #rotate { position: fixed; inset: 0; z-index: 50; display: none; align-items: center;
+    justify-content: center; background: #0a1422; font-size: 20px; text-align: center; padding: 30px; }
+  #rotate .ph { font-size: 50px; animation: rot 1.6s ease-in-out infinite; }
+  @keyframes rot { 0%,40%{transform:rotate(0)} 60%,100%{transform:rotate(-90deg)} }
+  .credit { position: absolute; bottom: 14px; font-size: 12px; opacity: 0.5; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game"></canvas></div>
+
+<!-- in-game HUD -->
+<div id="topbar"><button id="btnMenu" class="btn">≡</button></div>
+<div id="hud" style="display:none">
+  <div id="controls">
+    <div class="ctlGroup">
+      <button id="btnLeft" class="btn">◀</button>
+      <button id="btnRight" class="btn">▶</button>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
+      <div class="weaponBox">
+        <button id="btnPrev" class="nav">‹</button>
+        <div class="info"><b id="wName">Stone</b><span id="wAmmo">∞</span></div>
+        <button id="btnNext" class="nav">›</button>
+      </div>
+    </div>
+    <div class="ctlGroup">
+      <button id="btnFire" class="btn">FIRE</button>
+    </div>
+  </div>
+</div>
+
+<!-- screens -->
+<div id="title" class="screen show">
+  <p class="logo">CANNONHILL</p>
+  <p class="tag">Artillery duels on a crumbling mountain</p>
+  <button id="startBtn" class="big">Play</button>
+  <button id="howBtn" class="big ghost">How to play</button>
+  <div class="credit">Original game by Dirk Plate · mobile recreation</div>
+</div>
+
+<div id="setup" class="screen">
+  <h1>Battle Setup</h1>
+  <div class="row"><span>AI opponents</span>
+    <div class="stepper"><button id="aiMinus">−</button><span class="val" id="aiCountVal">2</span><button id="aiPlus">+</button></div>
+  </div>
+  <div class="row"><span>Rounds</span>
+    <div class="stepper"><button id="rMinus">−</button><span class="val" id="roundsVal">3</span><button id="rPlus">+</button></div>
+  </div>
+  <div class="row"><span>Wind</span><input type="checkbox" id="windChk" checked></div>
+  <div class="row"><span>Weather (snow)</span><input type="checkbox" id="weatherChk"></div>
+  <button id="playBtn" class="big">Start Battle</button>
+  <button id="setupBack" class="big ghost">Back</button>
+</div>
+
+<div id="help" class="screen">
+  <h1>How to play</h1>
+  <ul class="helpText">
+    <li><b>◀ ▶</b> — swing your cannon left / right.</li>
+    <li><b>FIRE</b> — hold to charge power, release to shoot. Longer hold = more power.</li>
+    <li><b>‹ ›</b> — switch weapons. Each has its own ammo and effect.</li>
+    <li>The ground is fully destructible and <b>collapses</b> — bury foes or dig yourself a trench.</li>
+    <li>Mind the <b>wind</b> arrow up top; it pushes shots in flight.</li>
+    <li>Reduce an enemy to 0 health to destroy them. <b>Last tank standing wins the round.</b></li>
+    <li>Earn cash for damage dealt, then spend it in the <b>shop</b> between rounds.</li>
+  </ul>
+  <button id="helpBack" class="big">Back</button>
+</div>
+
+<div id="round" class="screen">
+  <div id="roundResult"></div>
+  <button id="roundNext" class="big">Continue</button>
+</div>
+
+<div id="shop" class="screen">
+  <h1 id="shopTitle">Shop</h1>
+  <div class="tag">Cash: $<span id="shopMoney">0</span></div>
+  <div id="shopList"></div>
+  <button id="shopDone" class="big">Done</button>
+</div>
+
+<div id="over" class="screen">
+  <div id="overResult"></div>
+  <button id="overMenu" class="big">Main Menu</button>
+</div>
+
+<div id="rotate"><div><div class="ph">📱</div><br>Rotate your device to landscape to play.</div></div>
+
+<script src="game.js"></script>
+</body>
+</html>

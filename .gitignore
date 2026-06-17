@@ -1,0 +1,8 @@
+# generated preview render (recreate with: node render_preview.js)
+preview.png
+# Pages build output
+_site/
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+node_modules/
