@@ -723,6 +723,12 @@ function drawCharge(t) {
   const w = 22, h = 4, bx = t.x - w/2, by = t.y - 26;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx-1, by-1, w+2, h+2);
   ctx.fillStyle = '#f1c40f'; ctx.fillRect(bx, by, w * t.charge / MAX_POWER, h);
+  const pct = Math.round(t.charge / MAX_POWER * 100);
+  ctx.font = '7px -apple-system, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(pct + '%', t.x + 1, by - 1);
+  ctx.fillStyle = '#fff'; ctx.fillText(pct + '%', t.x, by - 2);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
 function render() {
@@ -781,13 +787,20 @@ function frame(ts) {
   requestAnimationFrame(frame);
   if (state === S_GAME) {
     if (!lastSim) lastSim = ts;
-    let guard = 5;
-    while (ts - lastSim >= SIM_MS && guard-- > 0) {
+    // if too much time has elapsed (round just started, tab was hidden, etc.)
+    // don't try to "catch up" with a burst of steps — that looks like the game
+    // briefly running fast. Snap the clock forward and resume at normal speed.
+    if (ts - lastSim > SIM_MS * 5) lastSim = ts - SIM_MS;
+    while (ts - lastSim >= SIM_MS) {
       simStep();
       lastSim += SIM_MS;
     }
     render();
     syncHumanWeaponUI();
+  } else {
+    // keep the sim clock fresh while on menus/shop so returning to play
+    // doesn't accumulate a backlog of steps.
+    lastSim = 0;
   }
 }
 function simStep() {
