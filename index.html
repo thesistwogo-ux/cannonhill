@@ -47,19 +47,25 @@
 
   /* ---------- full-screen menus ---------- */
   .screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center;
-    justify-content: center; padding: 24px; text-align: center; z-index: 20;
+    justify-content: flex-start; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    text-align: center; z-index: 20;
     background: radial-gradient(circle at 50% 25%, #1c3a63, #0a1422 75%); }
   .screen.show { display: flex; }
+  /* centre the content when it fits, but allow scrolling (nothing clipped) when it doesn't */
+  .screen > :first-child { margin-top: auto; }
+  .screen > :last-child { margin-bottom: auto; }
   .screen h1 { font-size: clamp(22px, 6vw, 40px); margin: 0 0 6px; }
   .logo { font-size: clamp(34px, 9vw, 64px); font-weight: 800; letter-spacing: 2px;
     background: linear-gradient(#ffe680, #ff9d3c); -webkit-background-clip: text; background-clip: text;
     color: transparent; text-shadow: 0 4px 18px rgba(255,140,40,0.3); margin: 0; }
   .tag { opacity: 0.7; margin: 4px 0 28px; font-size: 14px; }
-  button.big { font-size: 20px; padding: 14px 30px; margin: 8px; border-radius: 14px; border: none;
+  button.big { font-size: 20px; padding: 12px 30px; margin: 6px; border-radius: 14px; border: none;
     color: #10243d; font-weight: 700; background: linear-gradient(#ffe27a, #ffb13c); min-width: 220px; }
   button.ghost { background: rgba(255,255,255,0.08); color: #eaf2ff; border: 1px solid rgba(255,255,255,0.3); }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 14px;
-    width: min(420px, 86vw); padding: 12px 16px; margin: 6px 0; background: rgba(255,255,255,0.06);
+    width: min(420px, 86vw); padding: 9px 16px; margin: 5px 0; background: rgba(255,255,255,0.06);
     border-radius: 12px; font-size: 17px; }
   .stepper { display: flex; align-items: center; gap: 14px; }
   .stepper button { width: 40px; height: 40px; border-radius: 10px; border: none; font-size: 22px;
@@ -68,8 +74,9 @@
   input[type=checkbox] { width: 26px; height: 26px; }
   .scores { border-collapse: collapse; margin: 16px auto; font-size: 16px; }
   .scores th, .scores td { padding: 6px 18px; border-bottom: 1px solid rgba(255,255,255,0.15); }
-  .helpText { max-width: 520px; text-align: left; line-height: 1.5; font-size: 15px; opacity: 0.92; }
-  .helpText li { margin: 6px 0; }
+  .helpText { max-width: 520px; text-align: left; line-height: 1.4; font-size: 14px; opacity: 0.92;
+    max-height: 58vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .helpText li { margin: 4px 0; }
   #shopList { width: min(440px, 90vw); max-height: 52vh; overflow-y: auto; margin: 10px 0; }
   .shopRow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 5px 0;
     background: rgba(255,255,255,0.06); border-radius: 10px; }
@@ -115,7 +122,7 @@
   <p class="tag">Artillery duels on a crumbling mountain</p>
   <button id="startBtn" class="big">Play</button>
   <button id="howBtn" class="big ghost">How to play</button>
-  <div class="credit">Original game by Dirk Plate · mobile recreation</div>
+  <div class="credit">Homage to the original Cannonhill game</div>
 </div>
 
 <div id="setup" class="screen">
@@ -144,6 +151,7 @@
     <li>Earn cash for damage dealt, then spend it in the <b>shop</b> between rounds.</li>
   </ul>
   <button id="helpBack" class="big">Back</button>
+  <div class="tag" style="margin:8px 0 0">…or tap anywhere to go back</div>
 </div>
 
 <div id="round" class="screen">

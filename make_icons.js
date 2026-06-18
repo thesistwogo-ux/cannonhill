@@ -61,20 +61,31 @@ function draw(size, maskable) {
   // tank near the summit
   const tx = Math.round(W*0.5), ty = Math.round(baseY - H*0.40);
   const u = size/24;
-  const fill = (x0,y0,bw,bh,r,g,b)=>{ for(let y=0;y<bh;y++)for(let x=0;x<bw;x++) set(x0+x,y0+y,r,g,b); };
-  fill(Math.round(tx-5*u), Math.round(ty-2*u), Math.round(10*u), Math.round(3.5*u), 220,40,40);
-  fill(Math.round(tx-6*u), Math.round(ty+1.2*u), Math.round(12*u), Math.round(2.2*u), 150,28,28);
-  // turret + cannon (45°)
-  const cl = Math.round(9*u);
-  for (let i=0;i<cl;i++){
-    const cx = Math.round(tx + i*0.8), cy = Math.round(ty-2*u - i*0.8);
-    for (let w=-1;w<=1;w++) for (let h=-1;h<=1;h++) set(cx+w,cy+h,30,30,30);
-  }
+  const fill = (x0,y0,bw,bh,r,g,b)=>{ for(let y=0;y<bh;y++)for(let x=0;x<bw;x++) set(Math.round(x0)+x,Math.round(y0)+y,r,g,b); };
+  const disc = (cx,cy,rad,r,g,b)=>{ const R=Math.round(rad); for(let y=-R;y<=R;y++)for(let x=-R;x<=R;x++) if(x*x+y*y<=R*R) set(Math.round(cx)+x,Math.round(cy)+y,r,g,b); };
+  const dome = (cx,cy,rad,r,g,b)=>{ const R=Math.round(rad); for(let y=-R;y<=0;y++)for(let x=-R;x<=R;x++) if(x*x+y*y<=R*R) set(Math.round(cx)+x,Math.round(cy)+y,r,g,b); };
+
+  const RED=[220,40,40], DRED=[150,28,28], TRACK=[60,60,64], WHEEL=[30,30,34], CAN=[28,28,28];
+  // tracks (dark treads with rounded ends) + road wheels
+  fill(tx-8*u, ty+0.8*u, 16*u, 3*u, ...TRACK);
+  disc(tx-8*u, ty+2.3*u, 1.5*u, ...TRACK);
+  disc(tx+8*u, ty+2.3*u, 1.5*u, ...TRACK);
+  for (let i=0;i<5;i++) disc(tx + (-6.4 + i*3.2)*u, ty+2.3*u, 1.0*u, ...WHEEL);
+  // hull (red) with a darker lower strip
+  fill(tx-7*u, ty-1.4*u, 14*u, 3.0*u, ...RED);
+  fill(tx-7.5*u, ty+0.4*u, 15*u, 1.2*u, ...DRED);
+  // turret: red dome on a short base block
+  fill(tx-4*u, ty-1.9*u, 8*u, 1.2*u, ...RED);
+  dome(tx, ty-1.7*u, 4.2*u, ...RED);
+  // cannon barrel, angled up-right (~40°) from the turret
+  const ang = 40*Math.PI/180, cl = Math.round(11*u), bx = tx, by = ty-3.4*u;
+  for (let i=0;i<cl;i++) disc(bx+Math.cos(ang)*i, by-Math.sin(ang)*i, 0.85*u, ...CAN);
+  disc(bx+Math.cos(ang)*cl, by-Math.sin(ang)*cl, 1.0*u, ...CAN);
   // a little shell arc of dots
   for (let i=0;i<7;i++){
-    const px = Math.round(tx + cl*0.8 + i*size*0.045);
-    const py = Math.round(ty-2*u - cl*0.8 - i*size*0.03 + i*i*size*0.006);
-    for (let w=-1;w<=1;w++) for (let h=-1;h<=1;h++) set(px+w,py+h,255,220,80);
+    const px = bx + Math.cos(ang)*cl + i*size*0.05;
+    const py = by - Math.sin(ang)*cl - i*size*0.028 + i*i*size*0.006;
+    disc(px, py, 1.1*u, 255,220,80);
   }
   return buf;
 }

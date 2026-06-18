@@ -223,7 +223,7 @@ function makeTank(i, isHuman) {
   return {
     id: i, active: true, human: isHuman, computer: !isHuman,
     color: TANK_COLORS[i],
-    x: 100, y: 100, hp: MAX_HP,
+    x: 100, y: 100, vy: 0, hp: MAX_HP,
     angle: i < 2 ? 60 : 120,      // degrees, 0=right .. 180=left, measured up
     power: 25, charging: false, charge: 0, shotActive: false, noAmmo: 0,
     weapon: W_STONE,
@@ -253,9 +253,35 @@ function placeTanks() {
     const x = clamp(((k + 1) * W / (n + 1)) | 0, 25, W-25);
     t.x = x;
     t.y = surfaceY(x) - 1;
+    t.vy = 0;
     t.charge = 0; t.charging = false; t.shotActive = false;
     t.shield = 0; t.magnet = 0;
   });
+}
+
+// Highest ground under the tank's footprint; the tank rests 1px above it.
+function restingY(t) {
+  let top = H - 1;
+  for (let x = (t.x - 7) | 0; x <= t.x + 7; x++) {
+    const s = surfaceY(clamp(x, 0, W - 1));
+    if (s < top) top = s;
+  }
+  return top - 1;
+}
+// Keep tanks on the ground: if terrain collapses beneath one, it falls until
+// supported again (rather than hanging in mid air); if ground rises, it rides up.
+function updateTankGravity() {
+  for (const t of tanks) {
+    if (!t.active) continue;
+    const target = restingY(t);
+    if (t.y < target - 0.5) {                 // floating — accelerate downward
+      t.vy = Math.min((t.vy || 0) + G * DT * 4, 12);
+      t.y += t.vy;
+      if (t.y >= target) { t.y = target; t.vy = 0; }
+    } else {                                    // supported (or ground rose)
+      t.y = target; t.vy = 0;
+    }
+  }
 }
 
 function cannonTip(t) {
@@ -841,6 +867,8 @@ function simStep() {
   for (let i = 0; i < 3; i++) stepCollapse();
   // acid eats terrain it touches
   updateAcid();
+  // tanks settle onto the (possibly changed) terrain
+  updateTankGravity();
   updateFX();
   updateWeather();
   checkRoundEnd();
@@ -1117,6 +1145,8 @@ function setupMenus() {
   document.getElementById('startBtn').addEventListener('click', () => { ensureAudio(); buildSetup(); showScreen('setup'); });
   document.getElementById('howBtn').addEventListener('click', () => showScreen('help'));
   document.getElementById('helpBack').addEventListener('click', () => showScreen('title'));
+  // fail-safe: tapping anywhere on the help screen returns to the title so you can't get stuck
+  document.getElementById('help').addEventListener('click', () => showScreen('title'));
 
   document.getElementById('aiMinus').onclick = () => { aiCount = clamp(aiCount-1, 1, 3); buildSetup(); };
   document.getElementById('aiPlus').onclick  = () => { aiCount = clamp(aiCount+1, 1, 3); buildSetup(); };
