@@ -574,9 +574,10 @@ function updateAI() {
     // aim toward the foe. aimAdjust steepens the arc (toward vertical) when our
     // shots keep falling short — typically because a hill is in the way.
     const dirRight = foe.x > t.x;
-    const adj = clamp(t.aimAdjust || 0, 0, 38);
-    t.angle = dirRight ? (52 + adj) : (128 - adj);
-    t.angle = clamp(t.angle, 18, 162);
+    const adj = clamp(t.aimAdjust || 0, 0, 28);
+    // keep the arc steep enough to lob over hills, but never vertical (>=90 would
+    // drop the shot straight back onto the firing tank). Always aim toward the foe.
+    t.angle = dirRight ? clamp(52 + adj, 20, 80) : clamp(128 - adj, 100, 160);
 
     if (t.weapon === W_MEDI) { fire(t); t.weapon = W_STONE; t.aiCooldown = 20; continue; }
 
@@ -609,7 +610,7 @@ function aiObserveLanding(ownerId, landX) {
   const miss = Math.abs(landX - foe.x);
   if (!overshot && miss > 25) {
     t.shortStreak = (t.shortStreak || 0) + 1;
-    if (t.shortStreak >= 2) { t.aimAdjust = clamp((t.aimAdjust || 0) + 7, 0, 38); t.accuracy = MAX_POWER/2; }
+    if (t.shortStreak >= 2) { t.aimAdjust = clamp((t.aimAdjust || 0) + 7, 0, 28); t.accuracy = MAX_POWER/2; }
   } else {
     t.shortStreak = 0;
     if (miss < 20) t.aimAdjust = Math.max(0, (t.aimAdjust || 0) - 3);
