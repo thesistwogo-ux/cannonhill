@@ -391,6 +391,7 @@ function explode(sh) {
     forCircle(cx, cy, spec.radius, (x, y) => {
       clearPixel(x, y); setPixel(x, y, M_ACID); activate(x, y);
     });
+    acidOwner = sh.owner;               // credit subsequent burn damage
     damageInRadius(cx, cy, spec.radius, spec.dmg || 100, sh.owner);
     terrainDirty = true; return;
   }
@@ -837,10 +838,32 @@ function simStep() {
 }
 
 let acidTimer = 0;
+let acidOwner = -1;
+const ACID_BITE = 1.4;      // hp lost per acid pixel absorbed
+const ACID_ABSORB = 16;     // max pixels a tank absorbs per tick (paces the burn)
 function updateAcid() {
-  // acid pixels slowly dissolve neighbouring non-acid terrain
   acidTimer++;
   if (acidTimer % 4 !== 0) return;
+
+  // acid touching a tank is absorbed and burns it — damage over time
+  for (const t of tanks) {
+    if (!t.active || t.shield > 0) continue;
+    let absorbed = 0;
+    for (let y = (t.y-14)|0; y <= t.y+2 && absorbed < ACID_ABSORB; y++) {
+      for (let x = (t.x-9)|0; x <= t.x+9 && absorbed < ACID_ABSORB; x++) {
+        if (x < 0 || x >= W || y < 0 || y >= H) continue;
+        if (mat[idx(x, y)] !== M_ACID) continue;
+        clearPixel(x, y); activateAround(x, y); absorbed++;
+        fx.push({ x, y, life: 6+randInt(6), r: 60, g: 255, b: 60 });
+      }
+    }
+    if (absorbed > 0) {
+      changeHP(t, -Math.max(1, Math.round(absorbed * ACID_BITE)), acidOwner);
+      terrainDirty = true;
+    }
+  }
+
+  // acid pixels slowly dissolve neighbouring non-acid terrain
   // sample: scan active acid by checking a random subset for performance
   for (let n = 0; n < 400; n++) {
     const i = randInt(W*H);
