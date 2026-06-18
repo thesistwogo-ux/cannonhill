@@ -38,6 +38,7 @@
   .btn.quick { width: 46px; height: 46px; font-size: 22px; }
   #btnShield { color: #8fd0ff; border-color: rgba(150,200,255,0.6); }
   #btnMedi { color: #6cf06c; border-color: rgba(140,240,140,0.6); font-weight: 700; }
+  #btnMagnet { color: #ffb14d; border-color: rgba(255,190,120,0.6); }
   .btn.quick.empty { opacity: 0.4; }
   .weaponBox { pointer-events: auto; display: flex; align-items: center; gap: 8px;
     background: rgba(10,20,35,0.5); border: 1px solid rgba(255,255,255,0.3); border-radius: 14px;
@@ -48,8 +49,8 @@
   .weaponBox .info b { display: block; font-size: 13px; }
   .weaponBox .info span { font-size: 16px; color: #ffd866; }
   #topbar { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: flex-end;
-    padding: 8px; pointer-events: none; }
-  #btnMenu { pointer-events: auto; width: 40px; height: 40px; font-size: 18px; }
+    gap: 8px; padding: 8px; pointer-events: none; }
+  #btnMenu, #btnPause { pointer-events: auto; width: 40px; height: 40px; font-size: 18px; }
 
   /* ---------- full-screen menus ---------- */
   .screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center;
@@ -107,7 +108,7 @@
 <div id="wrap"><canvas id="game"></canvas></div>
 
 <!-- in-game HUD -->
-<div id="topbar"><button id="btnMenu" class="btn">≡</button></div>
+<div id="topbar"><button id="btnPause" class="btn">⏸</button><button id="btnMenu" class="btn">≡</button></div>
 <div id="hud" style="display:none">
   <div id="controls">
     <div class="ctlGroup">
@@ -124,6 +125,7 @@
     <div class="ctlGroup fireCol">
       <button id="btnShield" class="btn quick" title="Deploy shield">🛡</button>
       <button id="btnMedi" class="btn quick" title="Use medi-pack">✚</button>
+      <button id="btnMagnet" class="btn quick" title="Deploy magnet">🧲</button>
       <button id="btnFire" class="btn">FIRE</button>
     </div>
   </div>

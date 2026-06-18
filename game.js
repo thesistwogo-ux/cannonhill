@@ -648,6 +648,7 @@ function startRound() {
   placeTanks();
   wind = windEnabled ? (Math.random()*8 - 4) : 0;
   roundTimer = 0;
+  setPaused(false);
   state = S_GAME;
   stopMusic();
 }
@@ -818,6 +819,19 @@ function render() {
   for (const t of tanks) if (t.active) { drawTank(t); drawCharge(t); }
 
   drawHUD();
+  if (paused) drawPausedOverlay();
+}
+
+function drawPausedOverlay() {
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 38px sans-serif';
+  ctx.fillText('PAUSED', W/2, H/2 - 8);
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('tap ▶ to resume', W/2, H/2 + 26);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
 function drawHUD() {
@@ -867,10 +881,16 @@ function drawHUD() {
 
 //=================================================================== main loop
 let lastSim = 0;
+let paused = false;
 const SIM_MS = 1000/30;
 function frame(ts) {
   requestAnimationFrame(frame);
   if (state === S_GAME) {
+    if (paused) {          // frozen: keep drawing the scene, run no simulation
+      lastSim = 0;         // so resuming doesn't replay a backlog of steps
+      render(); syncHumanWeaponUI();
+      return;
+    }
     if (!lastSim) lastSim = ts;
     // if too much time has elapsed (round just started, tab was hidden, etc.)
     // don't try to "catch up" with a burst of steps — that looks like the game
@@ -975,20 +995,30 @@ function setupControls() {
   bindButton(document.getElementById('btnLeft'),  ()=>input.left=true,  ()=>input.left=false);
   bindButton(document.getElementById('btnRight'), ()=>input.right=true, ()=>input.right=false);
   bindButton(document.getElementById('btnFire'),
-    ()=>{ const t=humanTank(); if(t){ if(t.ammo[t.weapon]===0){ t.noAmmo=45; } else if(WEAPONS[t.weapon].support||WEAPONS[t.weapon].instant||WEAPONS[t.weapon].rapid){ t.charge=MAX_POWER; fire(t);} else { t.charging=true; t.charge=Math.max(t.charge,2);} } },
-    ()=>{ const t=humanTank(); if(t && t.charging) fire(t); });
+    ()=>{ if(paused) return; const t=humanTank(); if(t){ if(t.ammo[t.weapon]===0){ t.noAmmo=45; } else if(WEAPONS[t.weapon].support||WEAPONS[t.weapon].instant||WEAPONS[t.weapon].rapid){ t.charge=MAX_POWER; fire(t);} else { t.charging=true; t.charge=Math.max(t.charge,2);} } },
+    ()=>{ if(paused) return; const t=humanTank(); if(t && t.charging) fire(t); });
   document.getElementById('btnPrev').addEventListener('click', ()=>cycleWeapon(-1));
   document.getElementById('btnNext').addEventListener('click', ()=>cycleWeapon(1));
   document.getElementById('btnShield').addEventListener('click', ()=>quickItem(W_SHIELD));
   document.getElementById('btnMedi').addEventListener('click', ()=>quickItem(W_MEDI));
+  document.getElementById('btnMagnet').addEventListener('click', ()=>quickItem(W_MAGNET));
+  document.getElementById('btnPause').addEventListener('click', togglePause);
   document.getElementById('btnMenu').addEventListener('click', ()=>{ state=S_TITLE; showScreen('title'); });
 }
+function setPaused(p) {
+  paused = p;
+  const b = document.getElementById('btnPause');
+  if (b) b.textContent = paused ? '▶' : '⏸';
+}
+function togglePause() { if (state === S_GAME) setPaused(!paused); }
 // Quick-deploy a support item (shield / medi-pack) without changing the selected
 // cannon weapon. No item in inventory -> the "no ammo" flash over the tank.
 function quickItem(w) {
+  if (paused) return;
   const t = humanTank(); if (!t) return;
   if (t.ammo[w] === 0) { t.noAmmo = 45; return; }      // none left -> out-of-ammo indicator
   if (w === W_SHIELD && t.shield > 0) return;           // already shielded — don't waste one
+  if (w === W_MAGNET && t.magnet > 0) return;           // magnet already active — don't waste one
   if (w === W_MEDI && t.hp >= MAX_HP) return;           // already full health — don't waste one
   const pw = t.weapon, pc = t.charge, pch = t.charging; // preserve cannon state
   t.weapon = w;
@@ -1013,6 +1043,7 @@ function syncHumanWeaponUI() {
   document.getElementById('wAmmo').textContent = a === -1 ? '∞' : a;
   document.getElementById('btnShield').classList.toggle('empty', t.ammo[W_SHIELD] === 0);
   document.getElementById('btnMedi').classList.toggle('empty', t.ammo[W_MEDI] === 0);
+  document.getElementById('btnMagnet').classList.toggle('empty', t.ammo[W_MAGNET] === 0);
 }
 
 //=================================================================== sound (WebAudio, synthesised — no asset files needed)
