@@ -985,12 +985,13 @@ const NF = { R:0,
 const PG_MEL = [
   ['A4',0.25],['A4',0.25],['D5',0.5],['A4',0.5],['F#4',0.5],['A4',0.5],['F#4',0.5],
   ['A4',0.5],['D5',0.5],['F#5',0.5],['E5',0.5],['E5',0.25],['E5',0.25],['E5',0.5],
-  ['D5',0.25],['E5',0.25],['F#5',0.5],['E5',0.5],
+  ['D5',0.25],['E5',0.25],['F#5',0.5],['E5',0.5],['D5',0.5],   // final D5 resolves the phrase
 ];
-// Martial root/fifth bass: D major for the first phrase, A (dominant) under the close.
+// Martial root/fifth bass: D major for the first phrase, A (dominant) under the
+// close, resolving to D under the final melody note.
 const PG_BASS = [
   ['D3',1],['A2',1],['D3',1],['A2',1],
-  ['A2',1],['E3',1],['A2',1],['E3',0.25],
+  ['A2',1],['E3',1],['A2',1],['E3',0.5],['D3',0.5],
 ];
 
 let musicTimer = null, musicMode = null, musicToken = 0, musicOscs = [];
