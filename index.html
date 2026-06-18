@@ -33,6 +33,12 @@
   #btnFire { width: 92px; height: 92px; font-size: 18px; font-weight: 700; letter-spacing: 1px;
     background: rgba(200,50,50,0.55); border-color: rgba(255,180,180,0.7); }
   #btnFire:active { background: rgba(230,60,60,0.85); }
+  /* fire column: shield + medi quick buttons stacked above FIRE */
+  .ctlGroup.fireCol { flex-direction: column; align-items: center; gap: 8px; }
+  .btn.quick { width: 46px; height: 46px; font-size: 22px; }
+  #btnShield { color: #8fd0ff; border-color: rgba(150,200,255,0.6); }
+  #btnMedi { color: #6cf06c; border-color: rgba(140,240,140,0.6); font-weight: 700; }
+  .btn.quick.empty { opacity: 0.4; }
   .weaponBox { pointer-events: auto; display: flex; align-items: center; gap: 8px;
     background: rgba(10,20,35,0.5); border: 1px solid rgba(255,255,255,0.3); border-radius: 14px;
     padding: 6px 10px; margin-bottom: 10px; backdrop-filter: blur(3px); }
@@ -115,7 +121,9 @@
         <button id="btnNext" class="nav">›</button>
       </div>
     </div>
-    <div class="ctlGroup">
+    <div class="ctlGroup fireCol">
+      <button id="btnShield" class="btn quick" title="Deploy shield">🛡</button>
+      <button id="btnMedi" class="btn quick" title="Use medi-pack">✚</button>
       <button id="btnFire" class="btn">FIRE</button>
     </div>
   </div>

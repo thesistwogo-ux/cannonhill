@@ -36,7 +36,8 @@ const COLOR_VAR = 15;                // ZFARBE — colour jitter per pixel
 
 // weapons (index → stats), mirrors Munition[] in panzer.cpp
 const W_ROCKET=1, W_SHIELD=2, W_STONE=3, W_GRENADE=4, W_LASER=5, W_GUN=6,
-      W_BARREL=7, W_MEDI=8, W_MAGROCKET=9, W_MAGNET=10, W_MEGA=11, W_SNOWBALL=12;
+      W_BARREL=7, W_MEDI=8, W_MAGROCKET=9, W_MAGNET=10, W_MEGA=11, W_SNOWBALL=12,
+      W_MGUN=13;
 const WEAPONS = {
   [W_ROCKET]:    { name:'Rocket',     short:'RKT', radius:20, dmg:300, price:70,  smoke:true },
   [W_SHIELD]:    { name:'Shield',     short:'SHLD',duration:500, price:200, support:true },
@@ -50,8 +51,10 @@ const WEAPONS = {
   [W_MAGNET]:    { name:'Magnet',     short:'MAG', duration:500, price:180, support:true },
   [W_MEGA]:      { name:'Mega Bomb',  short:'MEG', price:850, mega:true },
   [W_SNOWBALL]:  { name:'Snowball',   short:'SNW', radius:20, price:25, snow:true },
+  [W_MGUN]:      { name:'Machine Gun',short:'MGN', radius:3, dmg:40, price:250,
+                   straight:true, rapid:true, rounds:10 },   // 10 rounds, 4% HP each
 };
-const WEAPON_ORDER = [W_STONE, W_ROCKET, W_GRENADE, W_GUN, W_LASER, W_BARREL,
+const WEAPON_ORDER = [W_STONE, W_ROCKET, W_GRENADE, W_GUN, W_MGUN, W_LASER, W_BARREL,
                       W_SNOWBALL, W_SHIELD, W_MAGNET, W_MAGROCKET, W_MEGA, W_MEDI];
 const TANK_COLORS = [
   { r:230, g:40,  b:40,  name:'Red'    },
@@ -312,7 +315,7 @@ function fire(t) {
       magnetic: !!spec.magnetic, trail: 0,
     });
     t.shotActive = true;
-    playSfx('fire');
+    playSfx(spec.rapid ? 'mgun' : 'fire');
   }
   if (t.ammo[w] > 0) t.ammo[w]--;
   t.charge = 0; t.charging = false;
@@ -413,6 +416,16 @@ function explode(sh) {
   if (owner) owner.shotActive = shots.some(o => o !== sh && o.owner === sh.owner);
 
   if (spec.instant) return;
+
+  if (spec.rapid) {                     // machine-gun round — pinpoint, no big boom
+    const hid = tankAt(cx, cy, sh.owner);
+    // shield completely blocks machine-gun damage; otherwise a flat per-round hit
+    if (hid >= 0 && tanks[hid].shield === 0) changeHP(tanks[hid], -spec.dmg, sh.owner);
+    for (let i = 0; i < 4; i++) fx.push({ x: cx, y: cy, life: 4+randInt(5), r: 255, g: 210, b: 90 });
+    if (solid(cx, cy)) { clearPixel(cx, cy); activateAround(cx, cy); terrainDirty = true; }
+    aiObserveLanding(sh.owner, cx);
+    return;
+  }
 
   if (spec.snow) {                      // snowball — adds snow
     forCircle(cx, cy, spec.radius, (x, y) => {
@@ -681,7 +694,7 @@ function aiShop(t) {
     if (!affordable.length) break;
     const w = affordable[randInt(affordable.length)];
     t.money -= WEAPONS[w].price;
-    t.ammo[w] = (t.ammo[w] === -1 ? -1 : (t.ammo[w]||0) + 1);
+    t.ammo[w] = (t.ammo[w] === -1 ? -1 : (t.ammo[w]||0) + (WEAPONS[w].rounds||1));
     if (Math.random() < 0.3) break;
   }
 }
@@ -808,22 +821,48 @@ function render() {
 }
 
 function drawHUD() {
-  // wind arrow + round, top-center
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(W/2-70, 6, 140, 22);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign='center';
-  ctx.fillText(`Round ${round}/${maxRounds}`, W/2, 21);
-  // wind
+  // two separate top-centre fields: [ Round x/x ]   [ Wind → ]
+  const top = 6, h = 22, cy = top + h/2, pad = 11, gap = 8, arrowW = 26;
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textBaseline = 'middle';
+
+  const roundLabel = `Round ${round}/${maxRounds}`;
+  ctx.textAlign = 'left';
+  const roundW = Math.ceil(ctx.measureText(roundLabel).width) + pad*2;
+  const windTextW = Math.ceil(ctx.measureText('Wind').width);
+  const windW = windEnabled ? (pad + windTextW + 6 + arrowW + pad) : 0;
+
+  const totalW = roundW + (windEnabled ? gap + windW : 0);
+  let x = Math.round((W - totalW) / 2);
+
+  // Round field
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(x, top, roundW, h);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.fillText(roundLabel, x + roundW/2, cy);
+  x += roundW;
+
+  // Wind field
   if (windEnabled) {
-    ctx.save(); ctx.translate(W/2 + 52, 17);
+    x += gap;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x, top, windW, h);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillText('Wind', x + pad, cy);
+    // direction arrow
+    const ax = x + pad + windTextW + 6 + arrowW/2;
+    ctx.save(); ctx.translate(ax, cy);
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath();
-    const dir = Math.sign(wind), len = clamp(Math.abs(wind)*3, 4, 22);
+    const dir = Math.sign(wind) || 1, len = clamp(Math.abs(wind)*3, 4, arrowW-4);
     ctx.moveTo(-len*dir/2, 0); ctx.lineTo(len*dir/2, 0);
     ctx.moveTo(len*dir/2, 0); ctx.lineTo(len*dir/2 - 4*dir, -3);
     ctx.moveTo(len*dir/2, 0); ctx.lineTo(len*dir/2 - 4*dir, 3);
     ctx.stroke(); ctx.restore();
-    ctx.fillText('Wind', W/2 - 48, 21);
   }
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
 //=================================================================== main loop
@@ -936,11 +975,26 @@ function setupControls() {
   bindButton(document.getElementById('btnLeft'),  ()=>input.left=true,  ()=>input.left=false);
   bindButton(document.getElementById('btnRight'), ()=>input.right=true, ()=>input.right=false);
   bindButton(document.getElementById('btnFire'),
-    ()=>{ const t=humanTank(); if(t){ if(t.ammo[t.weapon]===0){ t.noAmmo=45; } else if(WEAPONS[t.weapon].support||WEAPONS[t.weapon].instant){ t.charge=MAX_POWER; fire(t);} else { t.charging=true; t.charge=Math.max(t.charge,2);} } },
+    ()=>{ const t=humanTank(); if(t){ if(t.ammo[t.weapon]===0){ t.noAmmo=45; } else if(WEAPONS[t.weapon].support||WEAPONS[t.weapon].instant||WEAPONS[t.weapon].rapid){ t.charge=MAX_POWER; fire(t);} else { t.charging=true; t.charge=Math.max(t.charge,2);} } },
     ()=>{ const t=humanTank(); if(t && t.charging) fire(t); });
   document.getElementById('btnPrev').addEventListener('click', ()=>cycleWeapon(-1));
   document.getElementById('btnNext').addEventListener('click', ()=>cycleWeapon(1));
+  document.getElementById('btnShield').addEventListener('click', ()=>quickItem(W_SHIELD));
+  document.getElementById('btnMedi').addEventListener('click', ()=>quickItem(W_MEDI));
   document.getElementById('btnMenu').addEventListener('click', ()=>{ state=S_TITLE; showScreen('title'); });
+}
+// Quick-deploy a support item (shield / medi-pack) without changing the selected
+// cannon weapon. No item in inventory -> the "no ammo" flash over the tank.
+function quickItem(w) {
+  const t = humanTank(); if (!t) return;
+  if (t.ammo[w] === 0) { t.noAmmo = 45; return; }      // none left -> out-of-ammo indicator
+  if (w === W_SHIELD && t.shield > 0) return;           // already shielded — don't waste one
+  if (w === W_MEDI && t.hp >= MAX_HP) return;           // already full health — don't waste one
+  const pw = t.weapon, pc = t.charge, pch = t.charging; // preserve cannon state
+  t.weapon = w;
+  fire(t);
+  t.weapon = pw; t.charge = pc; t.charging = pch;
+  syncHumanWeaponUI();
 }
 function cycleWeapon(dir) {
   const t = humanTank(); if (!t) return;
@@ -957,6 +1011,8 @@ function syncHumanWeaponUI() {
   document.getElementById('wName').textContent = spec.name;
   const a = t.ammo[t.weapon];
   document.getElementById('wAmmo').textContent = a === -1 ? '∞' : a;
+  document.getElementById('btnShield').classList.toggle('empty', t.ammo[W_SHIELD] === 0);
+  document.getElementById('btnMedi').classList.toggle('empty', t.ammo[W_MEDI] === 0);
 }
 
 //=================================================================== sound (WebAudio, synthesised — no asset files needed)
@@ -994,6 +1050,12 @@ function playSfx(kind) {
     o.frequency.exponentialRampToValueAtTime(70, now+0.18);
     g.gain.setValueAtTime(0.28, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.22);
     o.start(now); o.stop(now+0.22);
+  } else if (kind === 'mgun') {
+    // short percussive tick for a machine-gun round
+    o.type='square'; o.frequency.setValueAtTime(420, now);
+    o.frequency.exponentialRampToValueAtTime(170, now+0.05);
+    g.gain.setValueAtTime(0.16, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.06);
+    o.start(now); o.stop(now+0.06);
   } else if (kind === 'hit') {
     // metallic clang on a direct tank strike
     o.type='square'; o.frequency.setValueAtTime(540, now);
@@ -1122,7 +1184,7 @@ function buildShop() {
     buy.onclick = () => {
       if (t.money >= spec.price) {
         t.money -= spec.price;
-        t.ammo[w] = (t.ammo[w]===-1?-1:(t.ammo[w]||0)+1);
+        t.ammo[w] = (t.ammo[w]===-1?-1:(t.ammo[w]||0)+(spec.rounds||1));
         playSfx('fire'); buildShop();
       }
     };
