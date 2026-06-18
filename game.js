@@ -6,7 +6,13 @@
 'use strict';
 
 //=================================================================== constants
-const W = 640, H = 480;              // world resolution (matches the original)
+// World height is fixed; width follows the device's landscape aspect ratio so the
+// playfield fills the screen (no letterbox) on phones and tablets without distortion.
+// 4:3 -> 640 (the original), 16:9 -> ~853, 19.5:9 -> ~1040. Clamped for sanity.
+const H = 480;
+const _sw = window.innerWidth || 640, _sh = window.innerHeight || 480;
+const _aspect = Math.max(_sw, _sh) / Math.min(_sw, _sh);   // landscape ratio, orientation-agnostic
+const W = Math.min(1280, Math.max(640, Math.round(H * _aspect / 2) * 2));
 const G = 9.81;                      // gravity   (original: g)
 const DT = 0.08;                     // sim timestep (original: t)
 const CANNON_LEN = 20;               // KANONENLAENGE
@@ -654,7 +660,8 @@ function aiShop(t) {
 //=================================================================== rendering
 function resize() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  scale = Math.min(vw / W, vh / H);
+  // world aspect already matches the device, so cover the viewport completely
+  scale = Math.max(vw / W, vh / H);
   canvas.style.width = (W * scale) + 'px';
   canvas.style.height = (H * scale) + 'px';
   offX = (vw - W*scale) / 2; offY = (vh - H*scale) / 2;
