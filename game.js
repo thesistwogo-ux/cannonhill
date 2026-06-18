@@ -286,6 +286,7 @@ function fire(t) {
       magnetic: !!spec.magnetic, trail: 0,
     });
     t.shotActive = true;
+    playSfx('fire');
   }
   if (t.ammo[w] > 0) t.ammo[w]--;
   t.charge = 0; t.charging = false;
@@ -344,6 +345,7 @@ function updateShots() {
       if (sh.y >= H) { aiObserveLanding(sh.owner, ix); removeShot(s, sh); exploded = true; break; }
       if (sh.y < 0) continue;                       // arc above screen
       const hit = tankAt(ix, iy, sh.owner);
+      if (hit >= 0) playSfx('hit');
       if (hit >= 0 || solid(ix, iy)) { explode(sh); shots.splice(s, 1); exploded = true; break; }
     }
     if (exploded) continue;
@@ -607,7 +609,7 @@ function startRound() {
   wind = windEnabled ? (Math.random()*8 - 4) : 0;
   roundTimer = 0;
   state = S_GAME;
-  startMusic();
+  stopMusic();
 }
 let roundTimer = 0;
 const SUDDEN_DEATH = 30 * 75;     // ~75s before the storm rolls in
@@ -929,8 +931,14 @@ function syncHumanWeaponUI() {
 }
 
 //=================================================================== sound (WebAudio, synthesised — no asset files needed)
-let actx = null, musicGain = null, musicNode = null;
-function ensureAudio() { if (!actx) { try { actx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} } }
+let actx = null;
+let muted = false;
+function ensureAudio() {
+  if (!actx) { try { actx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} }
+  // resume() only succeeds inside a user gesture. The music loops poll
+  // actx.state and begin on their own once the context is actually running.
+  if (actx && actx.state === 'suspended') actx.resume().catch(()=>{});
+}
 function playSfx(kind) {
   if (!actx || muted) return;
   const o = actx.createOscillator(), g = actx.createGain();
@@ -952,14 +960,123 @@ function playSfx(kind) {
     g.gain.setValueAtTime(0.12, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.25);
     o.start(now); o.stop(now+0.25);
   } else if (kind === 'fire') {
-    o.type='square'; o.frequency.setValueAtTime(300, now);
-    o.frequency.exponentialRampToValueAtTime(120, now+0.15);
-    g.gain.setValueAtTime(0.15, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.15);
-    o.start(now); o.stop(now+0.15);
+    // cannon report: short low boom
+    o.type='sawtooth'; o.frequency.setValueAtTime(220, now);
+    o.frequency.exponentialRampToValueAtTime(70, now+0.18);
+    g.gain.setValueAtTime(0.28, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.22);
+    o.start(now); o.stop(now+0.22);
+  } else if (kind === 'hit') {
+    // metallic clang on a direct tank strike
+    o.type='square'; o.frequency.setValueAtTime(540, now);
+    o.frequency.exponentialRampToValueAtTime(170, now+0.13);
+    g.gain.setValueAtTime(0.2, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.13);
+    o.start(now); o.stop(now+0.13);
   }
 }
-let muted = false;
-function startMusic() {/* music intentionally minimal; SFX only */}
+
+//------------------------------------------------------- music & jingles
+// Note frequencies (equal temperament).
+const NF = { R:0,
+  Eb2:77.78, F2:87.31, G2:98.00, Bb2:116.54, C3:130.81, Eb3:155.56, F3:174.61,
+  G3:196.00, Bb3:233.08, C4:261.63, D4:293.66, Eb4:311.13, F4:349.23, G4:392.00,
+  A4:440.00, Bb4:466.16, C5:523.25, D5:587.33, Eb5:622.25, F5:698.46, G5:783.99,
+  A5:880.00, Bb5:932.33 };
+
+// "Preußens Gloria" (J. G. Piefke, 1871 — public domain) main strain, melody + oom-pah bass.
+const GLORIA_MEL = [
+  ['F4',.5],['F4',.5],['Bb4',1],['Bb4',1],['D5',1],
+  ['C5',.5],['Bb4',.5],['A4',1],['F4',1],['R',1],
+  ['G4',.5],['G4',.5],['C5',1],['C5',1],['Eb5',1],
+  ['D5',.5],['C5',.5],['Bb4',1],['Bb4',1],['R',1],
+  ['D5',.5],['D5',.5],['Eb5',1],['D5',1],['C5',1],
+  ['Bb4',.5],['A4',.5],['Bb4',1],['D5',1],['R',1],
+  ['C5',.5],['Bb4',.5],['A4',1],['G4',1],['F4',1],
+  ['Bb4',2],['Bb4',1],['R',1],
+];
+const GLORIA_BASS = [
+  ['Bb2',1],['F2',1],['Bb2',1],['F2',1],
+  ['F2',1],['C3',1],['F2',1],['C3',1],
+  ['C3',1],['G2',1],['C3',1],['G2',1],
+  ['Bb2',1],['F2',1],['Bb2',1],['F2',1],
+  ['Eb2',1],['Bb2',1],['Eb2',1],['Bb2',1],
+  ['F2',1],['C3',1],['F2',1],['C3',1],
+  ['F2',1],['C3',1],['F2',1],['C3',1],
+  ['Bb2',1],['F2',1],['Bb2',2],
+];
+
+let musicTimer = null, musicMode = null, musicToken = 0, musicOscs = [];
+// One musical note. Same audio path as playSfx() (oscillator -> gain -> destination),
+// which is confirmed working on-device. Tracks the oscillator so stopMusic() can
+// silence it instantly.
+function mtone(note, start, dur, type, vol) {
+  const f = NF[note]; if (!f) return;                       // rest
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = f;
+  o.connect(g); g.connect(actx.destination);
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.exponentialRampToValueAtTime(vol, start + 0.02);
+  g.gain.setValueAtTime(vol, start + Math.max(0.05, dur * 0.7));
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.start(start); o.stop(start + dur + 0.05);
+  musicOscs.push(o);
+  o.onended = () => { const k = musicOscs.indexOf(o); if (k >= 0) musicOscs.splice(k, 1); };
+}
+// Schedule one pass of several parallel voices. Returns its length in seconds.
+function schedPass(voices, bpm, startAt) {
+  const beat = 60 / bpm; let total = 0;
+  for (const v of voices) {
+    let t = 0;
+    for (const [n,d] of v.seq) { mtone(n, startAt + t*beat, d*beat*0.95, v.type, v.vol); t += d; }
+    if (t > total) total = t;
+  }
+  return total * beat;
+}
+function killMusicOscs() {
+  for (const o of musicOscs) { try { o.stop(); } catch(e){} }
+  musicOscs = [];
+}
+function startMenuMusic() {
+  ensureAudio();
+  if (!actx || muted || musicMode === 'menu') return;
+  musicMode = 'menu'; const tok = ++musicToken;
+  const loop = () => {
+    if (tok !== musicToken || musicMode !== 'menu') return;
+    // wait until a user gesture has actually unlocked the context, then play
+    if (actx.state !== 'running') { musicTimer = setTimeout(loop, 250); return; }
+    const len = schedPass([
+      { seq: GLORIA_MEL,  type: 'square',   vol: 0.16 },
+      { seq: GLORIA_BASS, type: 'triangle', vol: 0.13 },
+    ], 116, actx.currentTime + 0.1);
+    musicTimer = setTimeout(loop, len * 1000);
+  };
+  loop();
+}
+function stopMusic() {
+  musicMode = null; musicToken++;
+  if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+  killMusicOscs();
+}
+function playVictory(grand) {
+  ensureAudio();
+  if (!actx || muted) return;
+  musicMode = 'jingle'; const tok = ++musicToken;
+  if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+  killMusicOscs();                                          // cut any menu music
+  // Victory = a snippet of the "Preußens Gloria" main strain (public domain).
+  // Round win plays the first 4 bars; a full game win plays the whole strain.
+  const mel  = GLORIA_MEL.slice(0, grand ? GLORIA_MEL.length : 20);
+  const bass = GLORIA_BASS.slice(0, grand ? GLORIA_BASS.length : 16);
+  const start = () => {
+    if (tok !== musicToken) return;
+    if (actx.state !== 'running') { musicTimer = setTimeout(start, 200); return; }
+    schedPass([
+      { seq: mel,  type: 'square',   vol: 0.22 },           // lead
+      { seq: mel,  type: 'sawtooth', vol: 0.09 },           // brassy reinforcement
+      { seq: bass, type: 'triangle', vol: 0.17 },
+    ], 126, actx.currentTime + 0.1);
+  };
+  start();
+}
 
 //=================================================================== screens
 function showScreen(id) {
@@ -1052,11 +1169,19 @@ let lastState = -1;
 setInterval(() => {
   if (state === lastState) return;
   lastState = state;
-  if (state === S_TITLE) showScreen('title');
-  else if (state === S_GAME) showScreen(null);
-  else if (state === S_ROUND) { buildRoundScreen(); showScreen('round'); }
-  else if (state === S_SHOP) { buildShop(); showScreen('shop'); }
-  else if (state === S_OVER) { buildOver(); showScreen('over'); }
+  if (state === S_TITLE) { showScreen('title'); startMenuMusic(); }
+  else if (state === S_GAME) { showScreen(null); stopMusic(); }
+  else if (state === S_ROUND) {
+    buildRoundScreen(); showScreen('round');
+    const w = roundWinner >= 0 ? tanks[roundWinner] : null;
+    if (w && w.human) playVictory(false); else startMenuMusic();
+  }
+  else if (state === S_SHOP) { buildShop(); showScreen('shop'); startMenuMusic(); }
+  else if (state === S_OVER) {
+    buildOver(); showScreen('over');
+    const ranked = [...tanks].sort((a,b)=> b.roundsWon - a.roundsWon || b.money - a.money);
+    if (ranked[0] && ranked[0].human) playVictory(true); else startMenuMusic();
+  }
 }, 80);
 
 //=================================================================== boot
@@ -1078,6 +1203,17 @@ function boot() {
   setupMenus();
   showScreen('title');
   requestAnimationFrame(frame);
+
+  // browsers block audio until a user gesture — unlock on first tap and kick off
+  // the menu theme if we're still on a menu screen.
+  const unlock = () => {
+    ensureAudio();
+    if (state === S_TITLE || state === S_SHOP) startMenuMusic();
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', unlock);
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
