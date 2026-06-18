@@ -977,31 +977,20 @@ function playSfx(kind) {
 //------------------------------------------------------- music & jingles
 // Note frequencies (equal temperament).
 const NF = { R:0,
-  Eb2:77.78, F2:87.31, G2:98.00, Bb2:116.54, C3:130.81, Eb3:155.56, F3:174.61,
-  G3:196.00, Bb3:233.08, C4:261.63, D4:293.66, Eb4:311.13, F4:349.23, G4:392.00,
-  A4:440.00, Bb4:466.16, C5:523.25, D5:587.33, Eb5:622.25, F5:698.46, G5:783.99,
-  A5:880.00, Bb5:932.33 };
+  A2:110.00, D3:146.83, E3:164.81, A3:220.00, D4:293.66,
+  F4:349.23, 'F#4':369.99, A4:440.00, D5:587.33, E5:659.25, 'F#5':739.99, A5:880.00 };
 
-// "Preußens Gloria" (J. G. Piefke, 1871 — public domain) main strain, melody + oom-pah bass.
-const GLORIA_MEL = [
-  ['F4',.5],['F4',.5],['Bb4',1],['Bb4',1],['D5',1],
-  ['C5',.5],['Bb4',.5],['A4',1],['F4',1],['R',1],
-  ['G4',.5],['G4',.5],['C5',1],['C5',1],['Eb5',1],
-  ['D5',.5],['C5',.5],['Bb4',1],['Bb4',1],['R',1],
-  ['D5',.5],['D5',.5],['Eb5',1],['D5',1],['C5',1],
-  ['Bb4',.5],['A4',.5],['Bb4',1],['D5',1],['R',1],
-  ['C5',.5],['Bb4',.5],['A4',1],['G4',1],['F4',1],
-  ['Bb4',2],['Bb4',1],['R',1],
+// "Preußens Gloria" (J. G. Piefke, 1871 — public domain), opening fanfare strain,
+// transcribed from the reference MIDI (first ~5.9s, lead-in trimmed). D major, 110 bpm.
+const PG_MEL = [
+  ['A4',0.25],['A4',0.25],['D5',0.5],['A4',0.5],['F#4',0.5],['A4',0.5],['F#4',0.5],
+  ['A4',0.5],['D5',0.5],['F#5',0.5],['E5',0.5],['E5',0.25],['E5',0.25],['E5',0.5],
+  ['D5',0.25],['E5',0.25],['F#5',0.5],['E5',0.5],
 ];
-const GLORIA_BASS = [
-  ['Bb2',1],['F2',1],['Bb2',1],['F2',1],
-  ['F2',1],['C3',1],['F2',1],['C3',1],
-  ['C3',1],['G2',1],['C3',1],['G2',1],
-  ['Bb2',1],['F2',1],['Bb2',1],['F2',1],
-  ['Eb2',1],['Bb2',1],['Eb2',1],['Bb2',1],
-  ['F2',1],['C3',1],['F2',1],['C3',1],
-  ['F2',1],['C3',1],['F2',1],['C3',1],
-  ['Bb2',1],['F2',1],['Bb2',2],
+// Martial root/fifth bass: D major for the first phrase, A (dominant) under the close.
+const PG_BASS = [
+  ['D3',1],['A2',1],['D3',1],['A2',1],
+  ['A2',1],['E3',1],['A2',1],['E3',0.25],
 ];
 
 let musicTimer = null, musicMode = null, musicToken = 0, musicOscs = [];
@@ -1035,45 +1024,27 @@ function killMusicOscs() {
   for (const o of musicOscs) { try { o.stop(); } catch(e){} }
   musicOscs = [];
 }
-function startMenuMusic() {
-  ensureAudio();
-  if (!actx || muted || musicMode === 'menu') return;
-  musicMode = 'menu'; const tok = ++musicToken;
-  const loop = () => {
-    if (tok !== musicToken || musicMode !== 'menu') return;
-    // wait until a user gesture has actually unlocked the context, then play
-    if (actx.state !== 'running') { musicTimer = setTimeout(loop, 250); return; }
-    const len = schedPass([
-      { seq: GLORIA_MEL,  type: 'square',   vol: 0.16 },
-      { seq: GLORIA_BASS, type: 'triangle', vol: 0.13 },
-    ], 116, actx.currentTime + 0.1);
-    musicTimer = setTimeout(loop, len * 1000);
-  };
-  loop();
-}
 function stopMusic() {
   musicMode = null; musicToken++;
   if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
   killMusicOscs();
 }
+// Victory jingle only — no menu music. The "Preußens Gloria" opening fanfare
+// (~4s, well under 10s) plays for both a round win and a full match win.
 function playVictory(grand) {
   ensureAudio();
   if (!actx || muted) return;
   musicMode = 'jingle'; const tok = ++musicToken;
   if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
-  killMusicOscs();                                          // cut any menu music
-  // Victory = a snippet of the "Preußens Gloria" main strain (public domain).
-  // Round win plays the first 4 bars; a full game win plays the whole strain.
-  const mel  = GLORIA_MEL.slice(0, grand ? GLORIA_MEL.length : 20);
-  const bass = GLORIA_BASS.slice(0, grand ? GLORIA_BASS.length : 16);
+  killMusicOscs();
   const start = () => {
     if (tok !== musicToken) return;
     if (actx.state !== 'running') { musicTimer = setTimeout(start, 200); return; }
     schedPass([
-      { seq: mel,  type: 'square',   vol: 0.22 },           // lead
-      { seq: mel,  type: 'sawtooth', vol: 0.09 },           // brassy reinforcement
-      { seq: bass, type: 'triangle', vol: 0.17 },
-    ], 126, actx.currentTime + 0.1);
+      { seq: PG_MEL,  type: 'square',   vol: 0.22 },         // lead
+      { seq: PG_MEL,  type: 'sawtooth', vol: 0.09 },         // brassy reinforcement
+      { seq: PG_BASS, type: 'triangle', vol: 0.17 },
+    ], 110, actx.currentTime + 0.1);                         // source tempo
   };
   start();
 }
@@ -1169,18 +1140,18 @@ let lastState = -1;
 setInterval(() => {
   if (state === lastState) return;
   lastState = state;
-  if (state === S_TITLE) { showScreen('title'); startMenuMusic(); }
+  if (state === S_TITLE) showScreen('title');
   else if (state === S_GAME) { showScreen(null); stopMusic(); }
   else if (state === S_ROUND) {
     buildRoundScreen(); showScreen('round');
     const w = roundWinner >= 0 ? tanks[roundWinner] : null;
-    if (w && w.human) playVictory(false); else startMenuMusic();
+    if (w && w.human) playVictory(false);
   }
-  else if (state === S_SHOP) { buildShop(); showScreen('shop'); startMenuMusic(); }
+  else if (state === S_SHOP) { buildShop(); showScreen('shop'); }
   else if (state === S_OVER) {
     buildOver(); showScreen('over');
     const ranked = [...tanks].sort((a,b)=> b.roundsWon - a.roundsWon || b.money - a.money);
-    if (ranked[0] && ranked[0].human) playVictory(true); else startMenuMusic();
+    if (ranked[0] && ranked[0].human) playVictory(true);
   }
 }, 80);
 
@@ -1204,11 +1175,10 @@ function boot() {
   showScreen('title');
   requestAnimationFrame(frame);
 
-  // browsers block audio until a user gesture — unlock on first tap and kick off
-  // the menu theme if we're still on a menu screen.
+  // browsers block audio until a user gesture — unlock the context on first input
+  // so SFX and the victory jingle can play.
   const unlock = () => {
     ensureAudio();
-    if (state === S_TITLE || state === S_SHOP) startMenuMusic();
     window.removeEventListener('pointerdown', unlock);
     window.removeEventListener('keydown', unlock);
   };
